@@ -6,6 +6,16 @@
     <script type="module" src="popup.js"></script>
 </head>
 <body>
-    <strong>Hello World!</strong>
+    <div class="container">
+        <h3>Dark Mode</h3>
+        <div class="toggle-container">
+            <label class="switch">
+                <input type="checkbox" id="darkModeToggle">
+                <span class="slider round"></span>
+            </label>
+            <span class="toggle-label" id="toggleLabel">Off</span>
+        </div>
+        <div class="status" id="statusText">Click to enable dark mode</div>
+    </div>
 </body>
 </html>

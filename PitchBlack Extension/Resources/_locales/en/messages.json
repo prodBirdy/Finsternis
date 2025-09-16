@@ -4,7 +4,7 @@
         "description": "The display name for the extension."
     },
     "extension_description": {
-        "message": "This is PitchBlack Extension. You should tell us what your extension does here.",
+        "message": "Transform light mode websites to dark mode with a simple toggle. Remembers your preference across browser sessions.",
         "description": "Description of what the extension does."
     }
 }

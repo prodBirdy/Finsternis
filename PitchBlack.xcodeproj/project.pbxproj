@@ -47,11 +47,21 @@
 			);
 			target = 21ACBCFE2E79FBC1001B0494 /* PitchBlack Extension */;
 		};
+		21ACBD292E7A11B7001B0494 /* Exceptions for "PitchBlack" folder in "PitchBlack Extension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"Resources/pithblack-iOS-Default-1024x1024@1x.png",
+			);
+			target = 21ACBCFE2E79FBC1001B0494 /* PitchBlack Extension */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		21ACBCE72E79FBC1001B0494 /* PitchBlack */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				21ACBD292E7A11B7001B0494 /* Exceptions for "PitchBlack" folder in "PitchBlack Extension" target */,
+			);
 			path = PitchBlack;
 			sourceTree = "<group>";
 		};
