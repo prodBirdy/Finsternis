@@ -11,12 +11,12 @@ class DarkModeContentScript {
         console.log('PitchBlack: Content script initialized on', window.location.href);
 
         // Load saved state and apply if enabled
-        const result = await browser.storage.local.get(['darkModeEnabled']);
+        const result = await browser.storage.local.get(['darkModeEnabled', 'effect']);
         console.log('PitchBlack: Loaded saved state:', result);
 
         if (result.darkModeEnabled) {
             console.log('PitchBlack: Applying dark mode from saved state');
-            this.applyDarkMode();
+            this.applyDarkMode(result.effect || 100);
         }
 
         // Listen for messages from popup
@@ -27,11 +27,18 @@ class DarkModeContentScript {
     handleMessage(request, sender, sendResponse) {
         switch (request.action) {
             case 'toggleDarkMode':
+                console.log('PitchBlack: toggleDarkMode received, enabled:', request.enabled);
                 if (request.enabled) {
-                    this.applyDarkMode();
+                    this.applyDarkMode(request.effect || 100);
                 } else {
+                    console.log('PitchBlack: Calling removeDarkMode');
                     this.removeDarkMode();
                 }
+                sendResponse({ success: true });
+                break;
+
+            case 'updateFilters':
+                this.updateFilters(request.effect || 100);
                 sendResponse({ success: true });
                 break;
 
@@ -45,7 +52,7 @@ class DarkModeContentScript {
         return true; // Keep message channel open for async response
     }
 
-    applyDarkMode() {
+    applyDarkMode(effect = 100) {
         if (this.isActive) return;
 
         // Remove existing styles if any
@@ -59,47 +66,62 @@ class DarkModeContentScript {
             return;
         }
 
-        // Apply luminance-preserving filter to html element
-        document.documentElement.style.filter = 'invert(1) hue-rotate(180deg)';
-        console.log('PitchBlack: Applied luminance-preserving filter');
+        // Calculate intensity-based filter
+        // Effect 0 = light grey (easier on eyes), Effect 100 = pure black
+        const intensity = effect / 100; // Convert to 0-1 range
+        const brightness = 50 + (intensity * 50); // 50% to 100% brightness
+        const contrast = 50 + (intensity * 50); // 50% to 100% contrast
 
-        // Inject CSS to handle images and other media
-        this.injectMediaOverrides();
+        // Apply basic invert filter with calculated intensity (temporarily for testing)
+        const filterValue = `invert(1) hue-rotate(180deg) brightness(${brightness}%) contrast(${contrast}%)`;
+        document.documentElement.style.filter = filterValue;
+        console.log('PitchBlack: Applied basic invert filter with effect:', effect, 'brightness:', brightness, 'contrast:', contrast);
+        console.log('PitchBlack: Filter value applied:', filterValue);
+        console.log('PitchBlack: Current document filter:', document.documentElement.style.filter);
 
-        // Force re-application of styles after a short delay to ensure they take effect
-        setTimeout(() => {
-            this.injectMediaOverrides();
-            console.log('PitchBlack: Re-applied media override styles');
-        }, 100);
-
-        // Set up mutation observer to handle dynamically loaded images
-        this.setupImageObserver();
+        // Inject CSS to exclude images from the parent filter
+        this.injectImageExclusionCSS();
 
         this.isActive = true;
         console.log('PitchBlack: Dark mode applied successfully');
     }
 
     removeDarkMode() {
-        // Remove luminance-preserving filter
+        // Remove hue-preserving filter
         document.documentElement.style.filter = '';
-        console.log('PitchBlack: Removed luminance-preserving filter');
+        console.log('PitchBlack: Removed hue-preserving filter');
+        console.log('PitchBlack: Current filter after removal:', document.documentElement.style.filter);
 
-        // Remove media overrides
+        // Remove image exclusion CSS
         const existingStyle = document.getElementById(this.darkModeStyleId);
         if (existingStyle) {
             existingStyle.remove();
-            console.log('PitchBlack: Removed media override styles');
-        }
-
-        // Clean up mutation observer
-        if (this.imageObserver) {
-            this.imageObserver.disconnect();
-            this.imageObserver = null;
-            console.log('PitchBlack: Disconnected image observer');
+            console.log('PitchBlack: Removed image exclusion CSS');
         }
 
         this.isActive = false;
-        console.log('PitchBlack: Dark mode removed');
+        console.log('PitchBlack: Dark mode removed, isActive set to:', this.isActive);
+    }
+
+
+    updateFilters(effect) {
+        console.log('PitchBlack: updateFilters called with effect:', effect, 'isActive:', this.isActive);
+
+        if (!this.isActive) {
+            console.log('PitchBlack: Dark mode not active, skipping filter update');
+            return;
+        }
+
+        // Calculate intensity-based filter
+        // Effect 0 = light grey (easier on eyes), Effect 100 = pure black
+        const intensity = effect / 100; // Convert to 0-1 range
+        const brightness = 50 + (intensity * 50); // 50% to 100% brightness
+        const contrast = 50 + (intensity * 50); // 50% to 100% contrast
+
+        // Update filter with new intensity values using basic invert
+        const newFilter = `invert(1) hue-rotate(180deg) brightness(${brightness}%) contrast(${contrast}%)`;
+        document.documentElement.style.filter = newFilter;
+        console.log('PitchBlack: Updated filters to:', newFilter);
     }
 
     isPageAlreadyDark() {
@@ -158,41 +180,27 @@ class DarkModeContentScript {
         return false;
     }
 
-    injectMediaOverrides() {
-        // Create and inject CSS to handle images and other media that shouldn't be inverted
+    injectImageExclusionCSS() {
+        // Remove any existing style element first
+        const existingStyle = document.getElementById(this.darkModeStyleId);
+        if (existingStyle) {
+            existingStyle.remove();
+        }
+
+        // Create CSS to exclude images from the parent filter
         const style = document.createElement('style');
         style.id = this.darkModeStyleId;
         style.textContent = `
-            /* PitchBlack Media Overrides - Cancel parent filter on images and media */
+            /* PitchBlack Image Exclusion - Exclude images from parent filter */
 
-            /* Images should not be inverted - apply inverse filter to cancel parent */
-            img, picture img, svg, image {
+            /* Apply inverse filter to images to cancel out the parent filter */
+            img, picture, svg, video, canvas, iframe, object, embed {
                 filter: invert(1) hue-rotate(180deg) !important;
             }
 
-            /* Video elements */
-            video {
-                filter: invert(1) hue-rotate(180deg) !important;
-            }
-
-            /* Canvas elements */
-            canvas {
-                filter: invert(1) hue-rotate(180deg) !important;
-            }
-
-            /* Embedded objects and iframes */
-            object, embed, iframe {
-                filter: invert(1) hue-rotate(180deg) !important;
-            }
-
-            /* Specific overrides for common media elements */
+            /* Specific selectors for common image elements */
             .image, .img, .photo, .picture, .avatar, .thumbnail,
             .logo, .icon, .brand, .badge, .emblem {
-                filter: invert(1) hue-rotate(180deg) !important;
-            }
-
-            /* Code syntax highlighting and similar */
-            .highlight, .syntax, .code-block, pre code {
                 filter: invert(1) hue-rotate(180deg) !important;
             }
 
@@ -201,74 +209,21 @@ class DarkModeContentScript {
                 filter: invert(1) hue-rotate(180deg) !important;
             }
 
-            /* Additional specific selectors for stubborn images */
+            /* File extension selectors */
             [src*=".png"], [src*=".jpg"], [src*=".jpeg"], [src*=".gif"], [src*=".webp"],
             [src*=".svg"], [style*="background-image"] {
                 filter: invert(1) hue-rotate(180deg) !important;
             }
         `;
         document.head.appendChild(style);
-        console.log('PitchBlack: Injected media override styles');
-    }
-
-    setupImageObserver() {
-        // Wait for body to be available
-        if (!document.body) {
-            setTimeout(() => this.setupImageObserver(), 100);
-            return;
-        }
-
-        // Create a mutation observer to handle dynamically loaded images
-        this.imageObserver = new MutationObserver((mutations) => {
-            let hasNewImages = false;
-
-            mutations.forEach((mutation) => {
-                mutation.addedNodes.forEach((node) => {
-                    if (node.nodeType === Node.ELEMENT_NODE) {
-                        // Check if the added element is an image or contains images
-                        const images = node.querySelectorAll ?
-                            node.querySelectorAll('img, picture, svg, video, canvas, iframe') : [];
-
-                        if (node.tagName === 'IMG' || node.tagName === 'PICTURE' ||
-                            node.tagName === 'SVG' || node.tagName === 'VIDEO' ||
-                            node.tagName === 'CANVAS' || node.tagName === 'IFRAME') {
-                            // Apply filter directly to the element
-                            if (!node.style.filter || node.style.filter === '') {
-                                node.style.filter = 'invert(1) hue-rotate(180deg)';
-                            }
-                            hasNewImages = true;
-                        }
-
-                        // Apply to found images
-                        images.forEach((img) => {
-                            if (!img.style.filter || img.style.filter === '') {
-                                img.style.filter = 'invert(1) hue-rotate(180deg)';
-                                hasNewImages = true;
-                            }
-                        });
-                    }
-                });
-            });
-
-            if (hasNewImages) {
-                console.log('PitchBlack: Applied filter to dynamically loaded images');
-            }
-        });
-
-        // Start observing
-        this.imageObserver.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
-
-        console.log('PitchBlack: Started image observer');
+        console.log('PitchBlack: Injected image exclusion CSS');
     }
 
     getDarkModeCSS() {
         // Minimal CSS for any edge cases or specific overrides if needed
         return `
-            /* PitchBlack Luminance-Preserving Dark Mode */
-            /* Using CSS filter: invert(1) hue-rotate(180deg) on html element */
+            /* PitchBlack Hue-Preserving Dark Mode */
+            /* Using advanced SVG filter for better color preservation */
 
             /* Optional: Fix any elements that don't look good with the filter */
             /* Add specific overrides here if needed */

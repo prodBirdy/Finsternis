@@ -33,5 +33,14 @@
     "permissions": [
         "storage",
         "activeTab"
-    ]
+    ],
+
+    "commands": {
+        "toggle-dark-mode": {
+            "suggested_key": {
+                "default": "Alt+N"
+            },
+            "description": "Toggle dark mode on/off"
+        }
+    }
 }

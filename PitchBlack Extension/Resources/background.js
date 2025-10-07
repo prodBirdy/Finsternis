@@ -16,6 +16,9 @@ class PitchBlackBackground {
 
         // Handle tab updates to potentially reinitialize dark mode
         browser.tabs.onUpdated.addListener(this.handleTabUpdate.bind(this));
+
+        // Listen for keyboard commands
+        browser.commands.onCommand.addListener(this.handleCommand.bind(this));
     }
 
     handleInstalled(details) {
@@ -25,6 +28,7 @@ class PitchBlackBackground {
         if (details.reason === 'install') {
             browser.storage.local.set({
                 darkModeEnabled: false,
+                effect: 100,
                 version: browser.runtime.getManifest().version
             });
         }
@@ -71,6 +75,38 @@ class PitchBlackBackground {
                 }
             } catch (error) {
                 console.log('Error handling tab update:', error);
+            }
+        }
+    }
+
+    async handleCommand(command) {
+        if (command === 'toggle-dark-mode') {
+            try {
+                // Get current state
+                const result = await browser.storage.local.get(['darkModeEnabled', 'effect']);
+                const newState = !result.darkModeEnabled;
+
+                // Update storage
+                await browser.storage.local.set({ darkModeEnabled: newState });
+
+                // Broadcast to all tabs
+                const tabs = await browser.tabs.query({});
+                for (const tab of tabs) {
+                    try {
+                        await browser.tabs.sendMessage(tab.id, {
+                            action: 'toggleDarkMode',
+                            enabled: newState,
+                            effect: result.effect || 100
+                        });
+                    } catch (error) {
+                        // Content script might not be loaded, which is normal
+                        console.log('Could not send message to tab:', tab.id, error);
+                    }
+                }
+
+                console.log('PitchBlack: Dark mode toggled via keyboard shortcut to', newState);
+            } catch (error) {
+                console.error('Error handling keyboard command:', error);
             }
         }
     }
